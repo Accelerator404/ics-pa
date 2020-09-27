@@ -6,8 +6,12 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+
 void cpu_exec(uint64_t);
+void isa_reg_display();
 int is_batch_mode();
+word_t paddr_read(paddr_t addr, int len);
+
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -39,6 +43,94 @@ static int cmd_q(char *args) {
 
 static int cmd_help(char *args);
 
+/* Add other commands here.  */
+
+static int cmd_si(char* args){
+    char *arg = strtok(NULL, " ");
+    // 单步执行
+    int N = 0;
+    if(arg==NULL)
+        N = 1;
+    else{
+        char *ptr;
+        N = strtol(arg,&ptr,10);
+    }
+    if(N < 1)
+        printf("Argument Error:si [N], N should be an integer which is greater than 0.\n");
+    else
+        cpu_exec(N);
+    return 0;
+}
+
+static long int calculate_EXPR(char *args){
+    // 表达式求值
+    // todo
+    char *arg =strtok(args, " ");
+    long int result;
+    if (arg[0]=='0' && arg[1]=='x'){
+        result = strtol(arg,NULL,16);
+    }
+    else
+        result = strtol(args,NULL,10);
+    return result;
+}
+
+static int cmd_p(char* args){
+    char *arg =strtok(NULL, " ");
+    // 表达式求值命令
+    if (arg==NULL)
+        printf("Argument Error: No expression was given.\n");
+    else{
+        printf("%ld\n",calculate_EXPR(arg));
+    }
+    return 0;
+}
+
+static int cmd_info(char* args){
+    // Next token.
+    if (args == NULL){
+        printf("Argument Error: No argument was given.\n");
+        return 0;
+    }
+
+    char *arg = strtok(NULL, " ");
+    if (strcmp(arg,"r")==0){
+        // Print registers info.
+        isa_reg_display();
+    }
+    else if (strcmp(arg,"w")==0){
+        // Print watchpoints info.
+        // todo
+    }
+    else{
+        printf("Argument Error: Please specify the subcommand (r/w).");
+    }
+    return 0;
+}
+
+static int cmd_x(char *args){
+    char *arg1 = strtok(NULL, " ");
+    char *arg2 = strtok(NULL, " ");
+    if (arg1==NULL || arg2==NULL){
+        printf("Argument Error: No enough argument was given.\n");
+    }
+    int N = strtol(arg1,NULL,10);
+    if (N < 1){
+        printf("Argument Error: Num of the bytes of the memory to read (N) should be greater than 0.\n");
+    }
+    else{
+        long int addr = calculate_EXPR(arg2);
+        for (int i = 0; i < N; ++i) {
+            printf("0x%08x\n",paddr_read(addr,4));
+            addr += 4;
+        }
+        printf("\n");
+    }
+    return 0;
+}
+
+/* Commands defined completed. */
+
 static struct {
   char *name;
   char *description;
@@ -47,7 +139,10 @@ static struct {
   { "help", "Display informations about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
-
+  {"si","Execute N instructions of the program.",cmd_si},
+  {"info","Display informations of registers(r) or watchpoints(w).",cmd_info},
+  {"p","Calculate the result of given expression.",cmd_p},
+  {"x","",cmd_x},
   /* TODO: Add more commands */
 
 };
