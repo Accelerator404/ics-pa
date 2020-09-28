@@ -11,7 +11,7 @@ void cpu_exec(uint64_t);
 void isa_reg_display();
 int is_batch_mode();
 word_t paddr_read(paddr_t addr, int len);
-
+word_t expr(char *e, bool *success);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -62,26 +62,18 @@ static int cmd_si(char* args){
     return 0;
 }
 
-static long int calculate_EXPR(char *args){
-    // 表达式求值
-    // todo
-    char *arg =strtok(args, " ");
-    long int result;
-    if (arg[0]=='0' && arg[1]=='x'){
-        result = strtol(arg,NULL,16);
-    }
-    else
-        result = strtol(args,NULL,10);
-    return result;
-}
 
 static int cmd_p(char* args){
-    char *arg =strtok(NULL, " ");
     // 表达式求值命令
-    if (arg==NULL)
+    if (args==NULL)
         printf("Argument Error: No expression was given.\n");
     else{
-        printf("%ld\n",calculate_EXPR(arg));
+        bool success = false;
+        word_t result = expr(args,&success);
+        if (success)
+            printf("%u\n",result);
+        else
+            printf("Failed to calculate the expression.\n");
     }
     return 0;
 }
@@ -109,8 +101,8 @@ static int cmd_info(char* args){
 }
 
 static int cmd_x(char *args){
-    char *arg1 = strtok(NULL, " ");
-    char *arg2 = strtok(NULL, " ");
+    char *arg1 = strsep(&args," ");
+    char *arg2 = args;
     if (arg1==NULL || arg2==NULL){
         printf("Argument Error: No enough argument was given.\n");
     }
@@ -119,12 +111,20 @@ static int cmd_x(char *args){
         printf("Argument Error: Num of the bytes of the memory to read (N) should be greater than 0.\n");
     }
     else{
-        long int addr = calculate_EXPR(arg2);
-        for (int i = 0; i < N; ++i) {
-            printf("0x%08x\n",paddr_read(addr,4));
-            addr += 4;
+        unsigned word_width = 4;
+        bool success = false;
+        word_t addr = expr(arg2,&success);
+        if (success) {
+            printf("Base_Address: 0x%08x\nNUM_WORDS: %d \tWORD_LEN: %d bytes\n",addr,N,word_width);
+            printf("Offset \tAddress \tWord_Hex \tWord_Dec\n");
+            for (int i = 0; i < N; ++i) {
+                word_t w = paddr_read(addr, word_width);
+                printf("%d\t0x%08x\t0x%08x\t%11u\n",i*word_width,addr,w,w);
+                addr += word_width;
+            }
         }
-        printf("\n");
+        else
+            printf("Failed to calculate the expression.\n");
     }
     return 0;
 }
@@ -142,7 +142,7 @@ static struct {
   {"si","Execute N instructions of the program.",cmd_si},
   {"info","Display informations of registers(r) or watchpoints(w).",cmd_info},
   {"p","Calculate the result of given expression.",cmd_p},
-  {"x","",cmd_x},
+  {"x","Get several words at the given memory address.",cmd_x},
   /* TODO: Add more commands */
 
 };

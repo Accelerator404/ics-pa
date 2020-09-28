@@ -4,6 +4,7 @@
 #include <time.h>
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 // this should be enough
 static char buf[65536] = {};
@@ -16,8 +17,15 @@ static char *code_format =
 "  return 0; "
 "}";
 
+static inline unsigned RANDINT(unsigned depth){
+    return rand()%max;
+}
+
+
 static inline void gen_rand_expr() {
-  buf[0] = '\0';
+    // todo: A random expression generator.
+
+    buf[0] = '\0';
 }
 
 int main(int argc, char *argv[]) {

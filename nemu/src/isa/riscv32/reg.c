@@ -1,6 +1,6 @@
 #include <isa.h>
 #include "local-include/reg.h"
-
+#include <string.h>
 // All registers are integer.
 // While ra,sp,gp,tp are pointer/address registers.
 const char *regsl[] = {
@@ -21,5 +21,19 @@ void isa_reg_display() {
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
-  return 0;
+    unsigned n = sizeof(regsl)/sizeof(regsl[0]);
+    if (strcmp(s,"pc") == 0) {
+        *success = true;
+        return (word_t)cpu.pc;
+    }
+    else{
+        for (int i = 0; i < n; ++i) {
+            if (strcmp(s,regsl[i]) == 0){
+                *success = true;
+                return cpu.gpr[i]._32;
+            }
+        }
+    }
+    *success=false;
+    return 0;
 }
