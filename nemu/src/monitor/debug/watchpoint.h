@@ -6,10 +6,13 @@
 typedef struct watchpoint {
   int NO;
   struct watchpoint *next;
-
-  /* TODO: Add more members if necessary */
+  char arg[2048];
+  word_t val;
 
 } WP;
 
+int set_watchpoint(char* args,bool* success);
+bool free_watchpoint(int NO);
+void print_all_watchpoint();
 
 #endif

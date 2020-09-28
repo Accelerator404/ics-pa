@@ -11,7 +11,7 @@ void cpu_exec(uint64_t);
 void isa_reg_display();
 int is_batch_mode();
 word_t paddr_read(paddr_t addr, int len);
-word_t expr(char *e, bool *success);
+// word_t expr(char *e, bool *success);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -91,8 +91,7 @@ static int cmd_info(char* args){
         isa_reg_display();
     }
     else if (strcmp(arg,"w")==0){
-        // Print watchpoints info.
-        // todo
+        print_all_watchpoint();
     }
     else{
         printf("Argument Error: Please specify the subcommand (r/w).");
@@ -129,6 +128,52 @@ static int cmd_x(char *args){
     return 0;
 }
 
+static int cmd_w(char* args){
+    if (args==NULL)
+        printf("Argument Error: No watchpoint No. was given.\n");
+    else {
+        bool success = false;
+        int id = set_watchpoint(args, &success);
+        if (success) {
+            printf("Watchpoint No. %d has been set.\n", id);
+        } else {
+            printf("Failed to set a watchpoint.\n");
+        }
+    }
+    return 0;
+}
+
+static int cmd_d(char* args){
+    if (args==NULL)
+        printf("Argument Error: No watchpoint No. was given.\n");
+    else{
+        int NO = strtol(args,NULL,10);
+        bool success = free_watchpoint(NO);
+        if (success)
+            printf("Watchpoint No. %d has been free.\n",NO);
+        else
+            printf("Failed to free the watchpoint.\n");
+    }
+    return 0;
+}
+
+static int cmd_b(char *args) {
+    if (args==NULL)
+        printf("Argument Error: No expression or address was given.\n");
+    else{
+        bool success = false;
+        word_t result = expr(args,&success);
+        if (success) {
+            char str[80];
+            sprintf(str,"$pc == 0x%08x",result);
+            set_watchpoint(str, &success);
+        }
+        else
+            printf("Failed to calculate the address.\n");
+    }
+    return 0;
+}
+
 /* Commands defined completed. */
 
 static struct {
@@ -143,7 +188,9 @@ static struct {
   {"info","Display informations of registers(r) or watchpoints(w).",cmd_info},
   {"p","Calculate the result of given expression.",cmd_p},
   {"x","Get several words at the given memory address.",cmd_x},
-  /* TODO: Add more commands */
+  {"w","Set a watchpoint.",cmd_w},
+  {"d","Delete a watchpoint.",cmd_d},
+  {"b","Set a breakpoint (emulate with watchpoint).\n",cmd_b},
 
 };
 

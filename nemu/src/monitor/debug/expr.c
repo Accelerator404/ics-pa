@@ -12,9 +12,16 @@ word_t paddr_read(paddr_t addr, int len);
 
 
 enum {
-  TK_NOTYPE = 256, TK_EQ,TK_GT,TK_LT,TK_UEQ,TK_AND,TK_OR,
+  TK_NOTYPE = 256, TK_EQ,TK_GT,TK_LT,TK_GTEQ,TK_LTEQ,TK_UEQ,
+  TK_AND,TK_OR,
   TK_HEX_INT32,TK_INT32,TK_NEG,
   TK_REG_VAR,TK_REG_ZERO,TK_REG_ADDR,TK_GET_VALUE,
+};
+
+enum{
+    LEVEL_UNI=1000,LEVEL_MUL_DIV,LEVEL_ADD_SUB,LEVEL_MOV,LEVEL_RELATION,
+    LEVEL_EQ,LEVEL_AND,LEVEL_OR,
+    LEVEL_NOT_SYMBOL,
 };
 
 static struct rule {
@@ -73,6 +80,28 @@ typedef struct token {
 static Token tokens[32] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
+int is_op_symbol(int p){
+    // return the op priority level.
+    if (p < 0 || p >= nr_token)
+        return -1;
+    int t = tokens[p].type;
+    if (t == TK_EQ||t==TK_UEQ)
+        return LEVEL_EQ;
+    else if (t == '+' || t=='-')
+        return LEVEL_ADD_SUB;
+    else if (t=='*'||t=='/')
+        return LEVEL_MUL_DIV;
+    else if(t==TK_GT || t==TK_GTEQ || t==TK_LT || t==TK_LTEQ)
+        return LEVEL_RELATION;
+    else if (t==TK_AND)
+        return LEVEL_AND;
+    else if (t==TK_OR)
+        return LEVEL_OR;
+    else
+        return LEVEL_NOT_SYMBOL;
+}
+
+
 static bool make_token(char *e) {
   int position = 0;
   int i;
@@ -122,9 +151,8 @@ static bool make_token(char *e) {
                   if ((nr_token-1)==0)
                       tokens[nr_token-1].type = TK_GET_VALUE;
                   else if((nr_token-2)>=0){
-                      int prev_type = tokens[nr_token-2].type;
-                      if (prev_type=='+'||prev_type=='-'||prev_type=='*'
-                            ||prev_type=='/'||prev_type==TK_EQ||prev_type==TK_UEQ||prev_type==TK_NEG)
+                      int op_lv = is_op_symbol(nr_token-2);
+                      if (op_lv >0 && op_lv<LEVEL_NOT_SYMBOL)
                           tokens[nr_token-1].type = TK_GET_VALUE;
                   }
               }
@@ -147,6 +175,15 @@ static bool make_token(char *e) {
 
 /* 计算表达式用 */
 
+void print_expr_seq(int p,int q){
+    if (p>q || q>=nr_token || p < 0)
+        return;
+    for (int i = p; i <= q; ++i) {
+        printf("%s",tokens[i].str);
+    }
+    printf("\n");
+}
+
 bool check_bracket_integrity(int p,int q){
     int bracket_l = 0;
     for (int i = p; i <= q; ++i) {
@@ -154,6 +191,8 @@ bool check_bracket_integrity(int p,int q){
             bracket_l++;
         else if (tokens[i].type==')')
             bracket_l--;
+        if (bracket_l<0)
+            return false;
     }
     if (bracket_l == 0)
         return true;
@@ -168,24 +207,13 @@ bool check_parentheses(int p,int q){
         return false;
     else
         // Continue checking expr with stack.
-        return check_bracket_integrity(p,q);
+        return check_bracket_integrity(p,q) && check_bracket_integrity(p+1,q-1);
 }
 
-int is_op_symbol(int p){
-    if (p < 0 || p >= nr_token)
-        return false;
-    int t = tokens[p].type;
-    if (t == TK_EQ||t==TK_UEQ)
-        return 1;
-    else if (t == '+' || t=='-')
-        return 2;
-    else if (t=='*'||t=='/')
-        return 3;
-    else
-        return 10;
-}
 
 int divide_expr(int p ,int q){
+    // printf("Divide:");
+    // print_expr_seq(p,q);
     if (check_parentheses(p,q))
         return divide_expr(p+1,q-1);
     // +,-,*,/ all need at least 3 tokens.
@@ -196,20 +224,22 @@ int divide_expr(int p ,int q){
     // 从右向左分割，保证计算从左向右
     // 考虑运算优先级
     int lowest_priority_pos = -1;
-    int lowest_priority = 5;
+    int lowest_priority = 1;
 
     for (int i = q; i >= p; --i) {
         int b = is_op_symbol(i);
-        if (b < lowest_priority && check_bracket_integrity(p,i-1)){
+        if (b>=LEVEL_NOT_SYMBOL)
+            continue;
+        if (b >= lowest_priority && check_bracket_integrity(p,i-1)){
             lowest_priority = b;
             lowest_priority_pos = i;
         }
 
-        if ((i==p||i==q) && b<5)
+        if ((i==p||i==q) && (b>0 && b < LEVEL_NOT_SYMBOL))
             return -2;
         // 匹配最左侧的最低优先级运算符
     }
-    if (lowest_priority_pos > p && lowest_priority <5){
+    if (lowest_priority_pos > p && lowest_priority < LEVEL_NOT_SYMBOL){
         return lowest_priority_pos;
     }
 
@@ -245,6 +275,12 @@ word_t op_tri(word_t a,word_t b,struct token* op){
         case '/':return a/b;
         case TK_EQ:return (word_t)(a==b);
         case TK_UEQ:return (word_t)(a!=b);
+        case TK_AND:return (word_t)(a&&b);
+        case TK_OR:return (word_t)(a||b);
+        case TK_GT:return (word_t)(a>b);
+        case TK_GTEQ:return (word_t)(a>=b);
+        case TK_LT:return (word_t)(a<b);
+        case TK_LTEQ:return (word_t)(a<=b);
         default:return 0;   // 通过is_op_symbol进行分割时已经限制二元运算符的种类
     }
 }
